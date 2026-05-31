@@ -1,36 +1,16 @@
 exports.handler = async function(event) {
 
-  // Handle CORS preflight request from browser
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-      body: '',
-    };
-  }
-
   // Only allow POST
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  // CORS headers for all responses
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Content-Type': 'application/json',
-  };
-
-  // API key stored securely in Netlify environment variables
+  // API key stored securely in Netlify environment variables — never visible to users
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
       statusCode: 500,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: { message: 'API key not configured. Please contact MCR Systems.' } })
+      body: JSON.stringify({ error: { message: 'API key not configured on server. Please contact MCR Systems.' } })
     };
   }
 
@@ -38,11 +18,7 @@ exports.handler = async function(event) {
   try {
     body = JSON.parse(event.body);
   } catch(e) {
-    return {
-      statusCode: 400,
-      headers: corsHeaders,
-      body: JSON.stringify({ error: { message: 'Invalid request body' } })
-    };
+    return { statusCode: 400, body: JSON.stringify({ error: { message: 'Invalid request body' } }) };
   }
 
   try {
@@ -65,14 +41,14 @@ exports.handler = async function(event) {
 
     return {
       statusCode: response.status,
-      headers: corsHeaders,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     };
 
   } catch(err) {
     return {
       statusCode: 500,
-      headers: corsHeaders,
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ error: { message: 'Server error: ' + err.message } }),
     };
   }
