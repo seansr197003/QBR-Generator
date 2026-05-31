@@ -6,15 +6,7 @@
 
 <title>MCR Systems — QBR Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/docx@9.6.1/build/index.js"></script>
-<script>
-// Fallback if jsdelivr is blocked
-if (typeof docx === 'undefined') {
-  var s = document.createElement('script');
-  s.src = 'https://unpkg.com/docx@9.6.1/build/index.js';
-  document.head.appendChild(s);
-}
-</script>
+<script src="https://unpkg.com/docx@9.6.1/build/index.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -783,11 +775,6 @@ window.closeModal = function() { document.getElementById('modalBg').classList.re
 
 // ── GENERATE ───────────────────────────────────────────
 async function doGen(d) {
-  // Check docx library is available
-  if (typeof docx === 'undefined') {
-    showStatus('Document library not loaded. Please do a hard refresh (Ctrl+Shift+R) and try again.', 'error');
-    return;
-  }
   setGen(true);
   showStatus('Calling Claude API — this takes 20–40 seconds, please wait...', 'info');
 
@@ -857,11 +844,8 @@ async function doGen(d) {
 
 // ── BUILD DOCX ─────────────────────────────────────────
 async function buildDocx(d, ai) {
-  // Try multiple ways the library might be exposed
-  var DC = window.docx || docx;
-  if (!DC) {
-    throw new Error('Document library not loaded. Please refresh the page and try again.');
-  }
+  var DC = window.docx;
+  if (!DC) { throw new Error('docx library not loaded - please refresh'); }
   var Document=DC.Document, Packer=DC.Packer, Paragraph=DC.Paragraph, TextRun=DC.TextRun,
       Table=DC.Table, TableRow=DC.TableRow, TableCell=DC.TableCell, ImageRun=DC.ImageRun,
       AlignmentType=DC.AlignmentType, BorderStyle=DC.BorderStyle, WidthType=DC.WidthType, ShadingType=DC.ShadingType;
