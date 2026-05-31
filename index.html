@@ -783,6 +783,11 @@ window.closeModal = function() { document.getElementById('modalBg').classList.re
 
 // ── GENERATE ───────────────────────────────────────────
 async function doGen(d) {
+  // Check docx library is available
+  if (typeof docx === 'undefined') {
+    showStatus('Document library not loaded. Please do a hard refresh (Ctrl+Shift+R) and try again.', 'error');
+    return;
+  }
   setGen(true);
   showStatus('Calling Claude API — this takes 20–40 seconds, please wait...', 'info');
 
@@ -852,7 +857,11 @@ async function doGen(d) {
 
 // ── BUILD DOCX ─────────────────────────────────────────
 async function buildDocx(d, ai) {
-  var DC = docx;
+  // Try multiple ways the library might be exposed
+  var DC = window.docx || docx;
+  if (!DC) {
+    throw new Error('Document library not loaded. Please refresh the page and try again.');
+  }
   var Document=DC.Document, Packer=DC.Packer, Paragraph=DC.Paragraph, TextRun=DC.TextRun,
       Table=DC.Table, TableRow=DC.TableRow, TableCell=DC.TableCell, ImageRun=DC.ImageRun,
       AlignmentType=DC.AlignmentType, BorderStyle=DC.BorderStyle, WidthType=DC.WidthType, ShadingType=DC.ShadingType;
