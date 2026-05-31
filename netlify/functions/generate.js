@@ -1,16 +1,34 @@
 exports.handler = async function(event) {
 
+  // Handle CORS preflight request from browser
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+      body: '',
+    };
+  }
+
   // Only allow POST
   if (event.httpMethod !== 'POST') {
     return { statusCode: 405, body: 'Method Not Allowed' };
   }
 
-  // API key stored securely in Netlify environment variables — never visible to users
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Content-Type': 'application/json',
+  };
+
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: { message: 'API key not configured on server. Please contact MCR Systems.' } })
+      headers: corsHeaders,
+      body: JSON.stringify({ error: { message: 'API key not configured. Please contact MCR Systems.' } })
     };
   }
 
@@ -18,7 +36,11 @@ exports.handler = async function(event) {
   try {
     body = JSON.parse(event.body);
   } catch(e) {
-    return { statusCode: 400, body: JSON.stringify({ error: { message: 'Invalid request body' } }) };
+    return {
+      statusCode: 400,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: { message: 'Invalid request body' } })
+    };
   }
 
   try {
@@ -30,7 +52,7 @@ exports.handler = async function(event) {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-opus-4-5',
         max_tokens: 4000,
         system: body.system,
         messages: body.messages,
@@ -41,14 +63,14 @@ exports.handler = async function(event) {
 
     return {
       statusCode: response.status,
-      headers: { 'Content-Type': 'application/json' },
+      headers: corsHeaders,
       body: JSON.stringify(data),
     };
 
   } catch(err) {
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: corsHeaders,
       body: JSON.stringify({ error: { message: 'Server error: ' + err.message } }),
     };
   }
