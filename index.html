@@ -6,7 +6,15 @@
 
 <title>MCR Systems — QBR Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/docx@9.6.1/build/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@9.6.1/build/index.js"></script>
+<script>
+// Fallback if jsdelivr is blocked
+if (typeof docx === 'undefined') {
+  var s = document.createElement('script');
+  s.src = 'https://unpkg.com/docx@9.6.1/build/index.js';
+  document.head.appendChild(s);
+}
+</script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
