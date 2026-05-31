@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src https://api.anthropic.com https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://fonts.googleapis.com https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline' https://unpkg.com; img-src 'self' data: blob:;">
 <title>MCR Systems — QBR Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/docx@9.6.1/build/index.js"></script>
@@ -707,7 +707,7 @@ function collect() {
   var em = document.getElementById('contractEndMonth').value;
   var ey = document.getElementById('contractEndYear').value;
   return {
-    apiKey: document.getElementById('apiKey').value.trim(),
+    apiKey: '', // handled server-side
     orgName: document.getElementById('orgName').value.trim(),
     meetingDate: document.getElementById('meetingDate').value,
     meetingTime: document.getElementById('meetingTime').value,
@@ -748,19 +748,7 @@ function runGen() {
   document.querySelectorAll('.field-error').forEach(function(e) { e.classList.remove('field-error'); });
   document.querySelectorAll('.err-card').forEach(function(e) { e.classList.remove('err-card'); });
 
-  // Check API key first
   var d = collect();
-  if (!d.apiKey) {
-    // Open API section and highlight it
-    document.getElementById('body-api').classList.remove('hidden');
-    document.getElementById('card-api').querySelector('.section-header').classList.remove('collapsed');
-    document.getElementById('fg-apiKey').classList.add('field-error');
-    document.getElementById('card-api').classList.add('err-card');
-    showStatus('Please enter your Anthropic API key in the API Configuration section above.', 'error');
-    document.getElementById('fg-apiKey').scrollIntoView({behavior:'smooth', block:'center'});
-    return;
-  }
-
   pendingData = d;
   var missing = validate(d);
   if (missing.length) {
@@ -813,17 +801,12 @@ async function doGen(d) {
     + '{"keyUpdates":[{"topic":"","update":"","notes":""}],"pointsRaised":[{"heading":"","narrative":""}],"strategicDiscussions":[""],"supportPoints":[""],"actionItems":[{"task":"","owner":"","deadline":"","status":"Open"}]}';
 
   try {
-    var res = await fetch('https://api.anthropic.com/v1/messages', {
+    var res = await fetch('/.netlify/functions/generate', {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': d.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-allow-browser': 'true'
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4000,
         system: sys,
         messages: [{role: 'user', content: usr}]
       })
@@ -832,14 +815,7 @@ async function doGen(d) {
     if (!res.ok) {
       var errBody = await res.json().catch(function() { return {error:{message: res.statusText}}; });
       var errMsg = (errBody.error && errBody.error.message) ? errBody.error.message : ('HTTP ' + res.status);
-      // Check for auth error
-      if (res.status === 401) {
-        showStatus('Invalid API key. Please check your key in the API Configuration section.', 'error');
-        document.getElementById('body-api').classList.remove('hidden');
-        document.getElementById('card-api').querySelector('.section-header').classList.remove('collapsed');
-      } else {
-        showStatus('API error: ' + errMsg, 'error');
-      }
+      showStatus('API error: ' + errMsg, 'error');
       setGen(false);
       return;
     }
