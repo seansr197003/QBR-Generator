@@ -124,7 +124,7 @@ input[type=password]{font-family:monospace;letter-spacing:.05em}
     <div class="field-group" id="fg-apiKey">
       <label class="field-label">Anthropic API Key <span class="req">*</span></label>
       <input type="password" id="apiKey" placeholder="sk-ant-..." autocomplete="off" oninput="saveKey()">
-      <div class="hint">Your key is saved in this browser only — never sent anywhere except Anthropic's API directly.</div>
+      <div class="hint">Your key is saved locally in this browser and auto-loaded each time. It is only ever sent directly to Anthropic's API.</div>
       <div class="key-saved" id="keySavedMsg"></div>
     </div>
   </div>
@@ -172,7 +172,7 @@ input[type=password]{font-family:monospace;letter-spacing:.05em}
         <label class="field-label">Client Attendees <span class="req">*</span></label>
         <div class="tag-box" id="tb-clientAtts">
           <div class="tags-list" id="tl-clientAtts"></div>
-          <input class="tag-input" id="ti-clientAtts" placeholder="Type name, press Enter or comma" onkeydown="tagKey(event,'clientAtts')">
+          <input class="tag-input" id="ti-clientAtts" placeholder="Type name, press Enter or comma" onkeydown="tagKey(event,'clientAtts')" oninput="tagInput(event,'clientAtts')">
         </div>
         <div class="hint">Press Enter or comma after each name</div>
       </div>
@@ -180,7 +180,7 @@ input[type=password]{font-family:monospace;letter-spacing:.05em}
         <label class="field-label">MCR Attendees <span class="req">*</span></label>
         <div class="tag-box" id="tb-mcrAtts">
           <div class="tags-list" id="tl-mcrAtts"></div>
-          <input class="tag-input" id="ti-mcrAtts" placeholder="Type name, press Enter or comma" onkeydown="tagKey(event,'mcrAtts')">
+          <input class="tag-input" id="ti-mcrAtts" placeholder="Type name, press Enter or comma" onkeydown="tagKey(event,'mcrAtts')" oninput="tagInput(event,'mcrAtts')">
         </div>
         <div class="hint">Press Enter or comma after each name</div>
       </div>
@@ -189,7 +189,7 @@ input[type=password]{font-family:monospace;letter-spacing:.05em}
       <label class="field-label">Apologies</label>
       <div class="tag-box" id="tb-apologies">
         <div class="tags-list" id="tl-apologies"></div>
-        <input class="tag-input" id="ti-apologies" placeholder="Type name, press Enter or comma" onkeydown="tagKey(event,'apologies')">
+        <input class="tag-input" id="ti-apologies" placeholder="Type name, press Enter or comma" onkeydown="tagKey(event,'apologies')" oninput="tagInput(event,'apologies')">
       </div>
     </div>
   </div>
@@ -458,6 +458,8 @@ window.addEventListener('load', function() {
 
   // Add default QBR date row
   addDateRow({event:'QBR'});
+  // Add one empty quote row so users see the form
+  addQuoteRow({});
 
   // Wire up buttons
   document.getElementById('addQuoteBtn').addEventListener('click', function() { addQuoteRow(); });
@@ -511,6 +513,18 @@ function renderTags(field) {
   });
 }
 window.rmTag = function(field, i) { tags[field].splice(i,1); renderTags(field); };
+// Handle comma typed mid-word
+window.tagInput = function(e, field) {
+  var val = e.target.value;
+  if(val.indexOf(',') !== -1) {
+    var parts = val.split(',');
+    for(var p=0; p<parts.length-1; p++) {
+      var name = parts[p].trim();
+      if(name) { tags[field].push(name); renderTags(field); }
+    }
+    e.target.value = parts[parts.length-1];
+  }
+};
 
 // ── LOCATION ───────────────────────────────────────────
 window.handleLoc = function() {
@@ -590,14 +604,18 @@ window.pasteImg = function(id) {
     return;
   }
   navigator.clipboard.read().then(function(items) {
+    var found = false;
     for(var i=0; i<items.length; i++) {
       for(var j=0; j<items[i].types.length; j++) {
         if(items[i].types[j].startsWith('image/')) {
-          items[i].getType(items[i].types[j]).then(function(blob) {
-            var r = new FileReader();
-            r.onload = function(ev) { setImg(id, ev.target.result, 'Pasted screenshot'); };
-            r.readAsDataURL(blob);
-          });
+          found = true;
+          (function(slotId, item, type) {
+            item.getType(type).then(function(blob) {
+              var r = new FileReader();
+              r.onload = function(ev) { setImg(slotId, ev.target.result, 'Pasted screenshot'); };
+              r.readAsDataURL(blob);
+            });
+          })(id, items[i], items[i].types[j]);
           return;
         }
       }
@@ -665,7 +683,6 @@ function collect() {
 // ── VALIDATE ───────────────────────────────────────────
 function validate(d) {
   var m = [];
-  if(!d.apiKey) m.push({l:'Anthropic API Key', card:'api', fg:'fg-apiKey'});
   if(!d.orgName) m.push({l:'Organisation Name', card:'meeting', fg:'fg-orgName'});
   if(!d.meetingDate) m.push({l:'Date of Meeting', card:'meeting', fg:'fg-meetingDate'});
   if(!d.clientAtts.length) m.push({l:'Client Attendees', card:'meeting', fg:'fg-clientAtts'});
@@ -688,7 +705,7 @@ function runGen() {
       var card = document.getElementById('card-'+m.card);
       if(card) card.classList.add('err-card');
     });
-    var critical = missing.some(function(m) { return m.fg==='fg-apiKey'||m.fg==='fg-transcript'; });
+    var critical = missing.some(function(m) { return m.fg==='fg-transcript'; });
     document.getElementById('modalMsg').textContent = critical
       ? 'The following required fields must be filled in — the API key and meeting notes are essential.'
       : 'The following fields are empty. You can still generate and Claude will do its best.';
@@ -701,7 +718,7 @@ function runGen() {
 window.closeModal = function() { document.getElementById('modalBg').classList.remove('show'); };
 
 async function doGen(d) {
-  if(!d.apiKey) { showStatus('Please enter your Anthropic API key.','error'); return; }
+  if(!d.apiKey) { showStatus('No API key found. Please enter your Anthropic API key in the API Configuration section above.','error'); document.getElementById('body-api').classList.remove('hidden'); document.getElementById('card-api').querySelector('.section-header').classList.remove('collapsed'); return; }
   setGen(true);
   showStatus('Calling Claude API — please wait 20–40 seconds...','info');
 
