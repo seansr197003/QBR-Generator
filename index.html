@@ -444,25 +444,26 @@ var pendingData = null;
 // ── INIT ───────────────────────────────────────────────
 window.addEventListener('load', function() {
   // Set today's date
-  var today = new Date().toISOString().split('T')[0];
-  document.getElementById('meetingDate').value = today;
+  document.getElementById('meetingDate').value = new Date().toISOString().split('T')[0];
 
   // Load saved API key
   try {
     var saved = localStorage.getItem('mcr_api_key');
-    if(saved) {
+    if (saved) {
       document.getElementById('apiKey').value = saved;
       document.getElementById('keySavedMsg').textContent = '✓ Key loaded from browser storage';
+      // Collapse API section since key is already loaded
+      document.getElementById('body-api').classList.add('hidden');
+      document.getElementById('card-api').querySelector('.section-header').classList.add('collapsed');
     }
   } catch(e) {}
 
-  // Add default QBR date row
-  addDateRow({event:'QBR'});
-  // Add one empty quote row so users see the form
+  // Add one empty quote row and one default date row
   addQuoteRow({});
+  addDateRow({event:'QBR'});
 
   // Wire up buttons
-  document.getElementById('addQuoteBtn').addEventListener('click', function() { addQuoteRow(); });
+  document.getElementById('addQuoteBtn').addEventListener('click', function() { addQuoteRow({}); });
   document.getElementById('addDateBtn').addEventListener('click', function() { addDateRow({}); });
   document.getElementById('genBtn').addEventListener('click', function() { runGen(); });
   document.getElementById('modalGoBtn').addEventListener('click', function() { closeModal(); doGen(pendingData); });
@@ -472,14 +473,19 @@ window.addEventListener('load', function() {
 window.saveKey = function() {
   try {
     var k = document.getElementById('apiKey').value;
-    if(k) { localStorage.setItem('mcr_api_key', k); document.getElementById('keySavedMsg').textContent = '✓ Key saved in browser'; }
-    else { localStorage.removeItem('mcr_api_key'); document.getElementById('keySavedMsg').textContent = ''; }
+    if (k) {
+      localStorage.setItem('mcr_api_key', k);
+      document.getElementById('keySavedMsg').textContent = '✓ Key saved in browser';
+    } else {
+      localStorage.removeItem('mcr_api_key');
+      document.getElementById('keySavedMsg').textContent = '';
+    }
   } catch(e) {}
 };
 
 // ── SECTION TOGGLE ─────────────────────────────────────
 window.toggleSec = function(id) {
-  var b = document.getElementById('body-'+id);
+  var b = document.getElementById('body-' + id);
   var h = b.previousElementSibling;
   b.classList.toggle('hidden');
   h.classList.toggle('collapsed');
@@ -487,44 +493,53 @@ window.toggleSec = function(id) {
 
 // ── TABS ───────────────────────────────────────────────
 window.switchTab = function(group, pane, btn) {
-  var body = document.getElementById('body-'+group) || btn.closest('.section-body');
+  var body = btn.closest('.section-body');
   body.querySelectorAll('.tab-pane').forEach(function(p) { p.classList.remove('active'); });
-  document.getElementById(group+'-'+pane).classList.add('active');
+  document.getElementById(group + '-' + pane).classList.add('active');
   btn.closest('.tabs').querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
   btn.classList.add('active');
 };
 
 // ── TAG INPUTS ─────────────────────────────────────────
+// Called on keydown - handle Enter and comma key
 window.tagKey = function(e, field) {
-  if(e.key === 'Enter' || e.key === ',') {
+  if (e.key === 'Enter') {
     e.preventDefault();
-    var val = e.target.value.trim().replace(/,$/, '');
-    if(val) { tags[field].push(val); e.target.value = ''; renderTags(field); }
+    var val = e.target.value.trim();
+    if (val) { tags[field].push(val); e.target.value = ''; renderTags(field); }
+  }
+  if (e.key === ',') {
+    e.preventDefault();
+    var val2 = e.target.value.trim();
+    if (val2) { tags[field].push(val2); e.target.value = ''; renderTags(field); }
   }
 };
-function renderTags(field) {
-  var list = document.getElementById('tl-'+field);
-  list.innerHTML = '';
-  tags[field].forEach(function(t, i) {
-    var span = document.createElement('span');
-    span.className = 'tag';
-    span.innerHTML = t + '<button type="button" onclick="rmTag(''+field+'','+i+')">×</button>';
-    list.appendChild(span);
-  });
-}
-window.rmTag = function(field, i) { tags[field].splice(i,1); renderTags(field); };
-// Handle comma typed mid-word
+
+// Called on input - handle paste with commas or typed commas
 window.tagInput = function(e, field) {
   var val = e.target.value;
-  if(val.indexOf(',') !== -1) {
+  if (val.indexOf(',') !== -1) {
     var parts = val.split(',');
-    for(var p=0; p<parts.length-1; p++) {
-      var name = parts[p].trim();
-      if(name) { tags[field].push(name); renderTags(field); }
+    for (var i = 0; i < parts.length - 1; i++) {
+      var name = parts[i].trim();
+      if (name) { tags[field].push(name); renderTags(field); }
     }
-    e.target.value = parts[parts.length-1];
+    e.target.value = parts[parts.length - 1].trimStart();
   }
 };
+
+function renderTags(field) {
+  var list = document.getElementById('tl-' + field);
+  list.innerHTML = tags[field].map(function(t, i) {
+    return '<span class="tag">' + escHtml(t) + '<button type="button" onclick="rmTag(\'' + field + '\',' + i + ')">×</button></span>';
+  }).join('');
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.rmTag = function(field, i) { tags[field].splice(i, 1); renderTags(field); };
 
 // ── LOCATION ───────────────────────────────────────────
 window.handleLoc = function() {
@@ -533,7 +548,7 @@ window.handleLoc = function() {
 };
 function getLoc() {
   var s = document.getElementById('locationSelect').value;
-  return s === 'custom' ? document.getElementById('locCustom').value : s;
+  return s === 'custom' ? (document.getElementById('locCustom').value || 'Other') : s;
 }
 
 // ── QUOTES ─────────────────────────────────────────────
@@ -541,36 +556,47 @@ var qStatuses = ['Still Open','Approved awaiting PO','Newly Created','Close down
 function addQuoteRow(d) {
   d = d || {};
   var opts = qStatuses.map(function(s) {
-    return '<option value="'+s+'"'+(s===(d.status||'Still Open')?' selected':'')+'>'+s+'</option>';
+    return '<option value="' + s + '"' + (s === (d.status || 'Still Open') ? ' selected' : '') + '>' + s + '</option>';
   }).join('');
   var tr = document.createElement('tr');
   tr.innerHTML =
-    '<td><input type="text" value="'+(d.qn||'')+'" placeholder="QT-0001"></td>'+
-    '<td><input type="text" value="'+(d.desc||'')+'" placeholder="Description..."></td>'+
-    '<td><input type="text" value="'+(d.val||'')+'" placeholder="0.00"></td>'+
-    '<td><select>'+opts+'</select></td>'+
-    '<td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">×</button></td>';
+    '<td><input type="text" value="' + escHtml(d.qn || '') + '" placeholder="QT-0001"></td>' +
+    '<td><input type="text" value="' + escHtml(d.desc || '') + '" placeholder="Description..."></td>' +
+    '<td><input type="text" value="' + escHtml(d.val || '') + '" placeholder="0.00"></td>' +
+    '<td><select>' + opts + '</select></td>' +
+    '<td><button type="button" class="del-btn" onclick="this.closest(\'tr\').remove()">×</button></td>';
   document.getElementById('quoteRows').appendChild(tr);
 }
 
 // ── DATES ──────────────────────────────────────────────
 var evTypes = ['QBR','Site Visit','Training','Meeting','Other'];
+var timeOpts = (function() {
+  var times = [];
+  for (var h = 7; h <= 20; h++) {
+    times.push(pad(h) + ':00');
+    if (h < 20) times.push(pad(h) + ':30');
+  }
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+  return times.map(function(t) {
+    return '<option value="' + t + '"' + (t === '09:00' ? ' selected' : '') + '>' + t + '</option>';
+  }).join('');
+})();
+
 function addDateRow(d) {
   d = d || {};
   var evOpts = evTypes.map(function(e) {
-    return '<option value="'+e+'"'+(e===(d.event||'')?' selected':'')+'>'+e+'</option>';
+    return '<option value="' + e + '"' + (e === (d.event || '') ? ' selected' : '') + '>' + e + '</option>';
   }).join('');
-  var timeOpts = '<option value="07:00">07:00</option><option value="07:30">07:30</option><option value="08:00">08:00</option><option value="08:30">08:30</option><option value="09:00" selected>09:00</option><option value="09:30">09:30</option><option value="10:00">10:00</option><option value="10:30">10:30</option><option value="11:00">11:00</option><option value="11:30">11:30</option><option value="12:00">12:00</option><option value="12:30">12:30</option><option value="13:00">13:00</option><option value="13:30">13:30</option><option value="14:00">14:00</option><option value="14:30">14:30</option><option value="15:00">15:00</option><option value="15:30">15:30</option><option value="16:00">16:00</option><option value="16:30">16:30</option><option value="17:00">17:00</option><option value="17:30">17:30</option><option value="18:00">18:00</option><option value="18:30">18:30</option><option value="19:00">19:00</option><option value="19:30">19:30</option><option value="20:00">20:00</option><option value="20:30">20:30</option>';
   var tr = document.createElement('tr');
   tr.innerHTML =
-    '<td style="min-width:130px">'+
-      '<select onchange="toggleCustEv(this)">'+evOpts+'</select>'+
-      '<input type="text" placeholder="Custom event..." style="display:none;margin-top:3px;width:100%">'+
-    '</td>'+
-    '<td><input type="date" value="'+(d.date||'')+'"></td>'+
-    '<td><select>'+timeOpts+'</select></td>'+
-    '<td><input type="text" value="'+(d.notes||'')+'" placeholder="Notes..."></td>'+
-    '<td><button type="button" class="del-btn" onclick="this.closest('tr').remove()">×</button></td>';
+    '<td style="min-width:130px">' +
+      '<select onchange="toggleCustEv(this)">' + evOpts + '</select>' +
+      '<input type="text" placeholder="Custom event..." style="display:none;margin-top:3px;width:100%">' +
+    '</td>' +
+    '<td><input type="date" value="' + escHtml(d.date || '') + '"></td>' +
+    '<td><select>' + timeOpts + '</select></td>' +
+    '<td><input type="text" value="' + escHtml(d.notes || '') + '" placeholder="Notes..."></td>' +
+    '<td><button type="button" class="del-btn" onclick="this.closest(\'tr\').remove()">×</button></td>';
   document.getElementById('dateRows').appendChild(tr);
 }
 window.toggleCustEv = function(sel) {
@@ -579,79 +605,101 @@ window.toggleCustEv = function(sel) {
 
 // ── FILE LOADERS ───────────────────────────────────────
 window.loadTemplateFile = function(e) {
-  var f = e.target.files[0]; if(!f) return;
-  if(f.name.match(/.(txt|md)$/i)) {
+  var f = e.target.files[0]; if (!f) return;
+  if (/\.(txt|md)$/i.test(f.name)) {
     var r = new FileReader();
     r.onload = function(ev) { document.getElementById('templateContent').value = ev.target.result; };
     r.readAsText(f);
   }
-  document.getElementById('templateStatus').textContent = 'Template loaded: '+f.name;
+  document.getElementById('templateStatus').textContent = 'Template loaded: ' + f.name;
 };
 window.loadTranscriptFile = function(e) {
-  var f = e.target.files[0]; if(!f) return;
+  var f = e.target.files[0]; if (!f) return;
   var r = new FileReader();
   r.onload = function(ev) {
     document.getElementById('transcriptText').value = ev.target.result;
-    document.getElementById('transcriptStatus').textContent = 'Loaded: '+f.name;
+    document.getElementById('transcriptStatus').textContent = 'Loaded: ' + f.name;
   };
   r.readAsText(f);
 };
 
 // ── IMAGES ─────────────────────────────────────────────
-window.pasteImg = function(id) {
-  if(!navigator.clipboard || !navigator.clipboard.read) {
-    alert('Clipboard API not available. Please use the "Choose File" button instead, or ensure you are accessing this page over https://');
+window.pasteImg = function(slotId) {
+  if (!navigator.clipboard || !navigator.clipboard.read) {
+    alert('Clipboard API not available. Please use the "Choose File" button instead, or make sure you are on https://');
     return;
   }
   navigator.clipboard.read().then(function(items) {
     var found = false;
-    for(var i=0; i<items.length; i++) {
-      for(var j=0; j<items[i].types.length; j++) {
-        if(items[i].types[j].startsWith('image/')) {
+    for (var i = 0; i < items.length && !found; i++) {
+      for (var j = 0; j < items[i].types.length && !found; j++) {
+        if (items[i].types[j].startsWith('image/')) {
           found = true;
-          (function(slotId, item, type) {
+          // Use IIFE to capture slotId, item, and type correctly
+          (function(sid, item, type) {
             item.getType(type).then(function(blob) {
               var r = new FileReader();
-              r.onload = function(ev) { setImg(slotId, ev.target.result, 'Pasted screenshot'); };
+              r.onload = function(ev) { setImg(sid, ev.target.result, 'Pasted screenshot'); };
               r.readAsDataURL(blob);
             });
-          })(id, items[i], items[i].types[j]);
-          return;
+          })(slotId, items[i], items[i].types[j]);
         }
       }
     }
-    alert('No image found in clipboard. Copy your screenshot first (use Snipping Tool or Win+Shift+S, then Ctrl+C), then click Paste.');
-  }).catch(function() {
-    alert('Clipboard permission denied. Try the "Choose File" button instead, or click Allow if your browser asks for clipboard permission.');
+    if (!found) {
+      alert('No image found in clipboard. Screenshot first with Win+Shift+S, then Ctrl+C to copy, then click Paste.');
+    }
+  }).catch(function(err) {
+    alert('Clipboard access denied. Click "Allow" if prompted, or use the "Choose File" button.\n\nError: ' + err.message);
   });
 };
+
 window.fileImg = function(e, id) {
-  var f = e.target.files[0]; if(!f) return;
+  var f = e.target.files[0]; if (!f) return;
   var r = new FileReader();
   r.onload = function(ev) { setImg(id, ev.target.result, f.name); };
   r.readAsDataURL(f);
 };
+
 function setImg(id, url, name) {
   imgData[id] = url;
-  document.getElementById('slot-'+id).classList.add('has-image');
-  var p = document.getElementById('prev-'+id);
+  var slot = document.getElementById('slot-' + id);
+  slot.classList.add('has-image');
+  slot.querySelector('.img-slot-label').textContent = '✓ ' + (name || 'Image loaded');
+  var p = document.getElementById('prev-' + id);
   p.src = url; p.classList.add('show');
-  document.getElementById('slot-'+id).querySelector('.img-slot-label').textContent = name || 'Image loaded';
 }
 
-// ── COLLECT ────────────────────────────────────────────
+// ── COLLECT FORM DATA ─────────────────────────────────
 function collect() {
   var qs = [];
   document.querySelectorAll('#quoteRows tr').forEach(function(tr) {
     var c = tr.querySelectorAll('td');
-    qs.push({qn:c[0].querySelector('input').value.trim(), desc:c[1].querySelector('input').value.trim(), val:c[2].querySelector('input').value.trim(), status:c[3].querySelector('select').value});
+    if (c.length >= 4) {
+      qs.push({
+        qn: c[0].querySelector('input').value.trim(),
+        desc: c[1].querySelector('input').value.trim(),
+        val: c[2].querySelector('input').value.trim(),
+        status: c[3].querySelector('select').value
+      });
+    }
   });
   var ds = [];
   document.querySelectorAll('#dateRows tr').forEach(function(tr) {
     var c = tr.querySelectorAll('td');
-    var sel = c[0].querySelector('select');
-    var ci = c[0].querySelector('input[type=text]');
-    ds.push({event: sel.value==='Other'?(ci?ci.value:'Other'):sel.value, date:c[1].querySelector('input').value, time:c[2].querySelector('select').value, notes:c[3].querySelector('input').value.trim()});
+    if (c.length >= 4) {
+      var sel = c[0].querySelector('select');
+      var ci = c[0].querySelector('input[type=text]');
+      var dateInput = c[1].querySelector('input[type=date]');
+      var timeSelect = c[2].querySelector('select');
+      var notesInput = c[3].querySelector('input');
+      ds.push({
+        event: sel && sel.value === 'Other' ? (ci ? ci.value : 'Other') : (sel ? sel.value : ''),
+        date: dateInput ? dateInput.value : '',
+        time: timeSelect ? timeSelect.value : '',
+        notes: notesInput ? notesInput.value.trim() : ''
+      });
+    }
   });
   var rm = document.getElementById('renewalMonth').value;
   var ry = document.getElementById('renewalYear').value;
@@ -668,13 +716,15 @@ function collect() {
     apologies: tags.apologies.slice(),
     template: document.getElementById('templateContent').value.trim(),
     transcript: document.getElementById('transcriptText').value.trim(),
-    d1: imgData['d1']||null, d2: imgData['d2']||null, d3: imgData['d3']||null,
+    d1: imgData['d1'] || null,
+    d2: imgData['d2'] || null,
+    d3: imgData['d3'] || null,
     quotes: qs, dates: ds,
     surveyStatus: document.getElementById('surveyStatus').value,
     surveyNotes: document.getElementById('surveyNotes').value.trim(),
     extraNotes: document.getElementById('extraNotes').value.trim(),
-    renewalDate: (rm&&ry) ? rm+'/'+ry : '',
-    contractEnd: (em&&ey) ? em+'/'+ey : '',
+    renewalDate: (rm && ry) ? rm + '/' + ry : '',
+    contractEnd: (em && ey) ? em + '/' + ey : '',
     winExpiry: document.getElementById('windowsExpiry').value,
     tillVer: document.getElementById('tillVersion').value.trim()
   };
@@ -683,90 +733,83 @@ function collect() {
 // ── VALIDATE ───────────────────────────────────────────
 function validate(d) {
   var m = [];
-  if(!d.orgName) m.push({l:'Organisation Name', card:'meeting', fg:'fg-orgName'});
-  if(!d.meetingDate) m.push({l:'Date of Meeting', card:'meeting', fg:'fg-meetingDate'});
-  if(!d.clientAtts.length) m.push({l:'Client Attendees', card:'meeting', fg:'fg-clientAtts'});
-  if(!d.mcrAtts.length) m.push({l:'MCR Attendees', card:'meeting', fg:'fg-mcrAtts'});
-  if(!d.transcript) m.push({l:'Meeting Transcript / Notes', card:'transcript', fg:'fg-transcript'});
+  if (!d.orgName) m.push({l:'Organisation Name', card:'meeting', fg:'fg-orgName'});
+  if (!d.meetingDate) m.push({l:'Date of Meeting', card:'meeting', fg:'fg-meetingDate'});
+  if (!d.clientAtts.length) m.push({l:'Client Attendees', card:'meeting', fg:'fg-clientAtts'});
+  if (!d.mcrAtts.length) m.push({l:'MCR Attendees', card:'meeting', fg:'fg-mcrAtts'});
+  if (!d.transcript) m.push({l:'Meeting Transcript / Notes', card:'transcript', fg:'fg-transcript'});
   return m;
 }
 
 // ── RUN ────────────────────────────────────────────────
 function runGen() {
+  // Clear old errors
   document.querySelectorAll('.field-error').forEach(function(e) { e.classList.remove('field-error'); });
   document.querySelectorAll('.err-card').forEach(function(e) { e.classList.remove('err-card'); });
+
+  // Check API key first
   var d = collect();
+  if (!d.apiKey) {
+    // Open API section and highlight it
+    document.getElementById('body-api').classList.remove('hidden');
+    document.getElementById('card-api').querySelector('.section-header').classList.remove('collapsed');
+    document.getElementById('fg-apiKey').classList.add('field-error');
+    document.getElementById('card-api').classList.add('err-card');
+    showStatus('Please enter your Anthropic API key in the API Configuration section above.', 'error');
+    document.getElementById('fg-apiKey').scrollIntoView({behavior:'smooth', block:'center'});
+    return;
+  }
+
   pendingData = d;
   var missing = validate(d);
-  if(missing.length) {
+  if (missing.length) {
     missing.forEach(function(m) {
       var el = document.getElementById(m.fg);
-      if(el) el.classList.add('field-error');
-      var card = document.getElementById('card-'+m.card);
-      if(card) card.classList.add('err-card');
+      if (el) el.classList.add('field-error');
+      var card = document.getElementById('card-' + m.card);
+      if (card) card.classList.add('err-card');
+      // Make sure the section is open
+      var body = document.getElementById('body-' + m.card);
+      if (body && body.classList.contains('hidden')) {
+        toggleSec(m.card);
+      }
     });
-    var critical = missing.some(function(m) { return m.fg==='fg-transcript'; });
-    document.getElementById('modalMsg').textContent = critical
-      ? 'The following required fields must be filled in — the API key and meeting notes are essential.'
-      : 'The following fields are empty. You can still generate and Claude will do its best.';
-    document.getElementById('modalList').innerHTML = missing.map(function(m) { return '<li>'+m.l+'</li>'; }).join('');
+    document.getElementById('modalMsg').textContent = 'The following fields are empty. You can still generate and Claude will do its best with what\'s available.';
+    document.getElementById('modalList').innerHTML = missing.map(function(m) { return '<li>' + m.l + '</li>'; }).join('');
     document.getElementById('modalBg').classList.add('show');
     return;
   }
   doGen(d);
 }
+
 window.closeModal = function() { document.getElementById('modalBg').classList.remove('show'); };
 
+// ── GENERATE ───────────────────────────────────────────
 async function doGen(d) {
-  if(!d.apiKey) { showStatus('No API key found. Please enter your Anthropic API key in the API Configuration section above.','error'); document.getElementById('body-api').classList.remove('hidden'); document.getElementById('card-api').querySelector('.section-header').classList.remove('collapsed'); return; }
   setGen(true);
-  showStatus('Calling Claude API — please wait 20–40 seconds...','info');
+  showStatus('Calling Claude API — this takes 20–40 seconds, please wait...', 'info');
 
-  var sys = 'You are an expert QBR writer for MCR Systems. Tone: warm, upbeat, sales-positive, professional but human. Use forward-looking language. pointsRaised must be narrative paragraphs (2-4 sentences each), never bullet points. Return ONLY valid JSON with no markdown fences or extra text.';
+  var sys = 'You are an expert QBR writer for MCR Systems. Tone: warm, upbeat, sales-positive, professional but human. Use forward-looking language. pointsRaised items must be narrative paragraphs (2-4 sentences), never bullet points. Return ONLY valid JSON — no markdown fences, no explanation, no extra text.';
 
-  var usr = 'Generate a QBR document from this data.
-
-'
-    +'ORGANISATION: '+d.orgName+'
-'
-    +'DATE: '+d.meetingDate+'
-'
-    +'TIME: '+d.meetingTime+'
-'
-    +'LOCATION: '+d.location+'
-'
-    +'CLIENT ATTENDEES: '+(d.clientAtts.join(', ')||'Not specified')+'
-'
-    +'MCR ATTENDEES: '+(d.mcrAtts.join(', ')||'Not specified')+'
-'
-    +'APOLOGIES: '+(d.apologies.join(', ')||'None')+'
-'
-    +'SURVEY STATUS: '+d.surveyStatus+'
-'
-    +'SURVEY NOTES: '+(d.surveyNotes||'None')+'
-'
-    +'EXTRA NOTES: '+(d.extraNotes||'None')+'
-'
-    +'CONTRACT RENEWAL: '+(d.renewalDate||'Not specified')+'
-'
-    +'CONTRACT END: '+(d.contractEnd||'Not specified')+'
-'
-    +'WINDOWS EXPIRY: '+(d.winExpiry||'Not specified')+'
-'
-    +'TILL VERSION: '+(d.tillVer||'Not specified')+'
-
-'
-    +'MEETING NOTES:
-'+(d.transcript||'No notes provided.')+'
-
-'
-    +'TEMPLATE STRUCTURE:
-'+(d.template||'Standard QBR format')+'
-
-'
-    +'Return exactly this JSON (fill all fields from the meeting notes):
-'
-    +'{"keyUpdates":[{"topic":"","update":"","notes":""}],"pointsRaised":[{"heading":"","narrative":""}],"strategicDiscussions":[""],"supportPoints":[""],"actionItems":[{"task":"","owner":"","deadline":"","status":"Open"}]}';
+  var usr = 'Generate a QBR document from this data:\n\n'
+    + 'ORGANISATION: ' + d.orgName + '\n'
+    + 'DATE: ' + d.meetingDate + '\n'
+    + 'TIME: ' + d.meetingTime + '\n'
+    + 'LOCATION: ' + d.location + '\n'
+    + 'CLIENT ATTENDEES: ' + (d.clientAtts.join(', ') || 'Not specified') + '\n'
+    + 'MCR ATTENDEES: ' + (d.mcrAtts.join(', ') || 'Not specified') + '\n'
+    + 'APOLOGIES: ' + (d.apologies.join(', ') || 'None') + '\n'
+    + 'SURVEY STATUS: ' + d.surveyStatus + '\n'
+    + 'SURVEY NOTES: ' + (d.surveyNotes || 'None') + '\n'
+    + 'EXTRA NOTES: ' + (d.extraNotes || 'None') + '\n'
+    + 'CONTRACT RENEWAL: ' + (d.renewalDate || 'Not specified') + '\n'
+    + 'CONTRACT END: ' + (d.contractEnd || 'Not specified') + '\n'
+    + 'WINDOWS EXPIRY: ' + (d.winExpiry || 'Not specified') + '\n'
+    + 'TILL VERSION: ' + (d.tillVer || 'Not specified') + '\n\n'
+    + 'MEETING NOTES:\n' + (d.transcript || 'No notes provided.') + '\n\n'
+    + 'TEMPLATE STRUCTURE:\n' + (d.template || 'Standard QBR format') + '\n\n'
+    + 'Return exactly this JSON schema:\n'
+    + '{"keyUpdates":[{"topic":"","update":"","notes":""}],"pointsRaised":[{"heading":"","narrative":""}],"strategicDiscussions":[""],"supportPoints":[""],"actionItems":[{"task":"","owner":"","deadline":"","status":"Open"}]}';
 
   try {
     var res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -777,22 +820,46 @@ async function doGen(d) {
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-allow-browser': 'true'
       },
-      body: JSON.stringify({model:'claude-sonnet-4-20250514', max_tokens:4000, system:sys, messages:[{role:'user',content:usr}]})
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        system: sys,
+        messages: [{role: 'user', content: usr}]
+      })
     });
-    if(!res.ok) {
-      var err = await res.json().catch(function() { return {error:{message:res.statusText}}; });
-      throw new Error(err.error ? err.error.message : 'HTTP '+res.status);
+
+    if (!res.ok) {
+      var errBody = await res.json().catch(function() { return {error:{message: res.statusText}}; });
+      var errMsg = (errBody.error && errBody.error.message) ? errBody.error.message : ('HTTP ' + res.status);
+      // Check for auth error
+      if (res.status === 401) {
+        showStatus('Invalid API key. Please check your key in the API Configuration section.', 'error');
+        document.getElementById('body-api').classList.remove('hidden');
+        document.getElementById('card-api').querySelector('.section-header').classList.remove('collapsed');
+      } else {
+        showStatus('API error: ' + errMsg, 'error');
+      }
+      setGen(false);
+      return;
     }
+
     var result = await res.json();
-    var txt = result.content.map(function(c) { return c.text||''; }).join('');
-    var fence = String.fromCharCode(96,96,96); var clean = txt.split(fence+'json').join('').split(fence).join('').trim();
+    var txt = result.content.map(function(c) { return c.text || ''; }).join('');
+    // Strip any markdown fences just in case
+    var clean = txt.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
     var ai = JSON.parse(clean);
-    showStatus('Building your .docx file...','info');
+
+    showStatus('Building your .docx file...', 'info');
     await buildDocx(d, ai);
-    showStatus('✓ Your QBR is ready! Click "Download .docx" to save it.','success');
+    showStatus('✓ Your QBR document is ready! Click "Download .docx" to save it.', 'success');
     document.getElementById('dlBtn').style.display = 'inline-flex';
+
   } catch(err) {
-    showStatus('Error: '+err.message,'error');
+    if (err instanceof SyntaxError) {
+      showStatus('Could not parse Claude\'s response. Please try again.', 'error');
+    } else {
+      showStatus('Error: ' + err.message, 'error');
+    }
   } finally {
     setGen(false);
   }
@@ -806,142 +873,183 @@ async function buildDocx(d, ai) {
       AlignmentType=DC.AlignmentType, BorderStyle=DC.BorderStyle, WidthType=DC.WidthType, ShadingType=DC.ShadingType;
 
   var G='1C4E4F', MT='D7E7E1', CE='B6D2AD', CA='101418', GUN='142828', SS='F6FAF9';
-  var bd = {style:BorderStyle.SINGLE,size:1,color:CE};
-  var bds = {top:bd,bottom:bd,left:bd,right:bd};
+  var bd = {style:BorderStyle.SINGLE, size:1, color:CE};
+  var bds = {top:bd, bottom:bd, left:bd, right:bd};
 
   function h1(text) {
-    return new Paragraph({children:[new TextRun({text:text,font:'Poppins',size:30,color:G})],
-      spacing:{before:280,after:100},
-      border:{bottom:{style:BorderStyle.SINGLE,size:5,color:CE,space:4}}});
+    return new Paragraph({children:[new TextRun({text:text, font:'Poppins', size:30, color:G})],
+      spacing:{before:280, after:100},
+      border:{bottom:{style:BorderStyle.SINGLE, size:5, color:CE, space:4}}});
   }
   function h2(text) {
-    return new Paragraph({children:[new TextRun({text:text,font:'Poppins',size:24,color:G})],spacing:{before:160,after:60}});
+    return new Paragraph({children:[new TextRun({text:text, font:'Poppins', size:24, color:G})], spacing:{before:160, after:60}});
   }
-  function p(text,col) {
-    return new Paragraph({children:[new TextRun({text:String(text||''),font:'Poppins',size:22,color:col||CA})],spacing:{after:100}});
+  function p(text, col) {
+    return new Paragraph({children:[new TextRun({text:String(text||''), font:'Poppins', size:22, color:col||CA})], spacing:{after:100}});
   }
-  function sp() { return new Paragraph({children:[new TextRun({text:'',size:20})],spacing:{after:80}}); }
-  function hc(text,w) {
-    return new TableCell({borders:bds,width:{size:w,type:WidthType.DXA},shading:{fill:MT,type:ShadingType.CLEAR},
-      margins:{top:70,bottom:70,left:100,right:100},
-      children:[new Paragraph({children:[new TextRun({text:text,font:'Poppins',size:18,color:GUN})]})]});
+  function sp() { return new Paragraph({children:[new TextRun({text:'', size:20})], spacing:{after:80}}); }
+  function hc(text, w) {
+    return new TableCell({borders:bds, width:{size:w, type:WidthType.DXA},
+      shading:{fill:MT, type:ShadingType.CLEAR}, margins:{top:70, bottom:70, left:100, right:100},
+      children:[new Paragraph({children:[new TextRun({text:text, font:'Poppins', size:18, color:GUN})]})]});
   }
-  function dc(text,w,shade) {
-    return new TableCell({borders:bds,width:{size:w,type:WidthType.DXA},
-      shading:shade?{fill:shade,type:ShadingType.CLEAR}:undefined,
-      margins:{top:70,bottom:70,left:100,right:100},
-      children:[new Paragraph({children:[new TextRun({text:String(text||''),font:'Poppins',size:20,color:CA})]})]});
+  function dc(text, w, shade) {
+    return new TableCell({borders:bds, width:{size:w, type:WidthType.DXA},
+      shading: shade ? {fill:shade, type:ShadingType.CLEAR} : undefined,
+      margins:{top:70, bottom:70, left:100, right:100},
+      children:[new Paragraph({children:[new TextRun({text:String(text||''), font:'Poppins', size:20, color:CA})]})]});
   }
   function row(cells) { return new TableRow({children:cells}); }
-  function tbl(total,cols,rows) { return new Table({width:{size:total,type:WidthType.DXA},columnWidths:cols,rows:rows}); }
+  function tbl(total, cols, rows) { return new Table({width:{size:total, type:WidthType.DXA}, columnWidths:cols, rows:rows}); }
 
   var kids = [];
 
   // Title
-  kids.push(new Paragraph({children:[new TextRun({text:'Quarterly Business Review',font:'Poppins',size:36,color:G})],alignment:AlignmentType.CENTER,spacing:{before:160,after:80}}));
-  kids.push(new Paragraph({children:[new TextRun({text:d.orgName,font:'Poppins',size:52,color:GUN})],alignment:AlignmentType.CENTER,spacing:{after:240}}));
+  kids.push(new Paragraph({children:[new TextRun({text:'Quarterly Business Review', font:'Poppins', size:36, color:G})], alignment:AlignmentType.CENTER, spacing:{before:160, after:80}}));
+  kids.push(new Paragraph({children:[new TextRun({text:d.orgName, font:'Poppins', size:52, color:GUN})], alignment:AlignmentType.CENTER, spacing:{after:240}}));
 
   // Meta table
-  kids.push(tbl(9360,[3120,3120,3120],[
+  kids.push(tbl(9360, [3120,3120,3120], [
     row([
-      new TableCell({borders:bds,width:{size:3120,type:WidthType.DXA},shading:{fill:MT,type:ShadingType.CLEAR},margins:{top:80,bottom:80,left:110,right:110},children:[p('Date & Time',GUN),p(fDate(d.meetingDate)+' at '+d.meetingTime,G)]}),
-      new TableCell({borders:bds,width:{size:3120,type:WidthType.DXA},shading:{fill:MT,type:ShadingType.CLEAR},margins:{top:80,bottom:80,left:110,right:110},children:[p('Location',GUN),p(d.location,G)]}),
-      new TableCell({borders:bds,width:{size:3120,type:WidthType.DXA},shading:{fill:MT,type:ShadingType.CLEAR},margins:{top:80,bottom:80,left:110,right:110},children:[p('MCR Attendees',GUN),p(d.mcrAtts.join(', ')||'—',G)]}),
+      new TableCell({borders:bds, width:{size:3120, type:WidthType.DXA}, shading:{fill:MT, type:ShadingType.CLEAR}, margins:{top:80, bottom:80, left:110, right:110}, children:[p('Date & Time',GUN), p(fDate(d.meetingDate)+' at '+d.meetingTime, G)]}),
+      new TableCell({borders:bds, width:{size:3120, type:WidthType.DXA}, shading:{fill:MT, type:ShadingType.CLEAR}, margins:{top:80, bottom:80, left:110, right:110}, children:[p('Location',GUN), p(d.location,G)]}),
+      new TableCell({borders:bds, width:{size:3120, type:WidthType.DXA}, shading:{fill:MT, type:ShadingType.CLEAR}, margins:{top:80, bottom:80, left:110, right:110}, children:[p('MCR Attendees',GUN), p(d.mcrAtts.join(', ')||'—',G)]}),
     ]),
     row([
-      new TableCell({borders:bds,width:{size:3120,type:WidthType.DXA},shading:{fill:SS,type:ShadingType.CLEAR},margins:{top:80,bottom:80,left:110,right:110},children:[p('Client Attendees',GUN),p(d.clientAtts.join(', ')||'—',G)]}),
-      new TableCell({borders:bds,width:{size:3120,type:WidthType.DXA},shading:{fill:SS,type:ShadingType.CLEAR},margins:{top:80,bottom:80,left:110,right:110},children:[p('Apologies',GUN),p(d.apologies.join(', ')||'None',G)]}),
-      new TableCell({borders:bds,width:{size:3120,type:WidthType.DXA},shading:{fill:SS,type:ShadingType.CLEAR},margins:{top:80,bottom:80,left:110,right:110},children:[p('Survey Status',GUN),p(d.surveyStatus,G)]}),
+      new TableCell({borders:bds, width:{size:3120, type:WidthType.DXA}, shading:{fill:SS, type:ShadingType.CLEAR}, margins:{top:80, bottom:80, left:110, right:110}, children:[p('Client Attendees',GUN), p(d.clientAtts.join(', ')||'—',G)]}),
+      new TableCell({borders:bds, width:{size:3120, type:WidthType.DXA}, shading:{fill:SS, type:ShadingType.CLEAR}, margins:{top:80, bottom:80, left:110, right:110}, children:[p('Apologies',GUN), p(d.apologies.join(', ')||'None',G)]}),
+      new TableCell({borders:bds, width:{size:3120, type:WidthType.DXA}, shading:{fill:SS, type:ShadingType.CLEAR}, margins:{top:80, bottom:80, left:110, right:110}, children:[p('Survey Status',GUN), p(d.surveyStatus,G)]}),
     ])
   ]));
   kids.push(sp());
 
-  if(ai.keyUpdates&&ai.keyUpdates.length) {
+  if (ai.keyUpdates && ai.keyUpdates.length) {
     kids.push(h1('Key Updates Since Last Meeting'));
-    var kw=[3000,4000,2360];
-    kids.push(tbl(9360,kw,[row([hc('Topic',3000),hc('Update',4000),hc('Notes',2360)])].concat(ai.keyUpdates.map(function(u){return row([dc(u.topic,3000),dc(u.update,4000),dc(u.notes,2360)]);})))); kids.push(sp());
+    var kw = [3000,4000,2360];
+    kids.push(tbl(9360, kw, [row([hc('Topic',3000),hc('Update',4000),hc('Notes',2360)])].concat(
+      ai.keyUpdates.map(function(u) { return row([dc(u.topic,3000), dc(u.update,4000), dc(u.notes,2360)]); })
+    )));
+    kids.push(sp());
   }
-  if(ai.pointsRaised&&ai.pointsRaised.length) {
+
+  if (ai.pointsRaised && ai.pointsRaised.length) {
     kids.push(h1('Points Raised'));
-    ai.pointsRaised.forEach(function(pt){kids.push(h2(pt.heading));kids.push(p(pt.narrative));});kids.push(sp());
+    ai.pointsRaised.forEach(function(pt) { kids.push(h2(pt.heading)); kids.push(p(pt.narrative)); });
+    kids.push(sp());
   }
-  if(ai.strategicDiscussions&&ai.strategicDiscussions.length) {
+
+  if (ai.strategicDiscussions && ai.strategicDiscussions.length) {
     kids.push(h1('Strategic Discussions'));
-    ai.strategicDiscussions.forEach(function(s){kids.push(new Paragraph({children:[new TextRun({text:'• '+s,font:'Poppins',size:22,color:CA})],spacing:{after:80},indent:{left:360}}));});kids.push(sp());
+    ai.strategicDiscussions.forEach(function(s) {
+      kids.push(new Paragraph({children:[new TextRun({text:'• '+s, font:'Poppins', size:22, color:CA})], spacing:{after:80}, indent:{left:360}}));
+    });
+    kids.push(sp());
   }
-  if(ai.supportPoints&&ai.supportPoints.length) {
+
+  if (ai.supportPoints && ai.supportPoints.length) {
     kids.push(h1('Support Overview'));
-    ai.supportPoints.forEach(function(s){kids.push(new Paragraph({children:[new TextRun({text:'• '+s,font:'Poppins',size:22,color:CA})],spacing:{after:80},indent:{left:360}}));});
+    ai.supportPoints.forEach(function(s) {
+      kids.push(new Paragraph({children:[new TextRun({text:'• '+s, font:'Poppins', size:22, color:CA})], spacing:{after:80}, indent:{left:360}}));
+    });
   }
-  if(d.d1){try{var b1=b64buf(d.d1);kids.push(sp());kids.push(new Paragraph({children:[new ImageRun({type:d.d1.includes('/png')?'png':'jpg',data:b1,transformation:{width:600,height:300},altText:{title:'Support Dashboard',description:'Support Dashboard',name:'SupportDash'}})]}));}catch(e){console.warn(e);}}
+  if (d.d1) { try { var b1=b64buf(d.d1); kids.push(sp()); kids.push(new Paragraph({children:[new ImageRun({type:d.d1.includes('/png')?'png':'jpg', data:b1, transformation:{width:600,height:300}, altText:{title:'Support Dashboard',description:'',name:'SupportDash'}})]})); } catch(e){ console.warn('d1 img:',e); } }
   kids.push(sp());
 
   kids.push(h1('KPI Dashboards'));
-  if(d.d2){try{var b2=b64buf(d.d2);kids.push(h2('Contract KPI'));kids.push(new Paragraph({children:[new ImageRun({type:d.d2.includes('/png')?'png':'jpg',data:b2,transformation:{width:600,height:300},altText:{title:'Contract KPI',description:'Contract KPI',name:'ContractKPI'}})]}));kids.push(sp());}catch(e){console.warn(e);}}
-  if(d.d3){try{var b3=b64buf(d.d3);kids.push(h2('KPI Performance'));kids.push(new Paragraph({children:[new ImageRun({type:d.d3.includes('/png')?'png':'jpg',data:b3,transformation:{width:600,height:300},altText:{title:'KPI Performance',description:'KPI Performance',name:'KPIDash'}})]}));kids.push(sp());}catch(e){console.warn(e);}}
+  if (d.d2) { try { var b2=b64buf(d.d2); kids.push(h2('Contract KPI')); kids.push(new Paragraph({children:[new ImageRun({type:d.d2.includes('/png')?'png':'jpg', data:b2, transformation:{width:600,height:300}, altText:{title:'Contract KPI',description:'',name:'ContractKPI'}})]})); kids.push(sp()); } catch(e){ console.warn('d2 img:',e); } }
+  if (d.d3) { try { var b3=b64buf(d.d3); kids.push(h2('KPI Performance')); kids.push(new Paragraph({children:[new ImageRun({type:d.d3.includes('/png')?'png':'jpg', data:b3, transformation:{width:600,height:300}, altText:{title:'KPI Performance',description:'',name:'KPIDash'}})]})); kids.push(sp()); } catch(e){ console.warn('d3 img:',e); } }
 
   kids.push(h1('Survey & KPI Status'));
-  kids.push(p('Status: '+d.surveyStatus));
-  if(d.surveyNotes) kids.push(p('Notes: '+d.surveyNotes));
+  kids.push(p('Status: ' + d.surveyStatus));
+  if (d.surveyNotes) kids.push(p('Notes: ' + d.surveyNotes));
   kids.push(sp());
 
   kids.push(h1('Upcoming Dates'));
-  if(d.dates.length) {
-    var dw=[2000,1800,1500,4060];
-    kids.push(tbl(9360,dw,[row([hc('Event',2000),hc('Date',1800),hc('Time',1500),hc('Notes',4060)])].concat(d.dates.map(function(dt){return row([dc(dt.event,2000),dc(fDate(dt.date),1800),dc(dt.time,1500),dc(dt.notes,4060)]);}))));
+  var validDates = d.dates.filter(function(dt) { return dt.event || dt.date; });
+  if (validDates.length) {
+    var dw = [2000,1800,1500,4060];
+    kids.push(tbl(9360, dw, [row([hc('Event',2000),hc('Date',1800),hc('Time',1500),hc('Notes',4060)])].concat(
+      validDates.map(function(dt) { return row([dc(dt.event,2000), dc(fDate(dt.date),1800), dc(dt.time,1500), dc(dt.notes,4060)]); })
+    )));
   } else { kids.push(p('No upcoming dates recorded.')); }
   kids.push(sp());
 
   kids.push(h1('Outstanding & New Quotes'));
-  var vq = d.quotes.filter(function(q){return q.qn||q.desc;});
-  if(vq.length) {
-    var qw=[2000,3560,1300,2500];
-    kids.push(tbl(9360,qw,[row([hc('Quote No.',2000),hc('Description',3560),hc('Value',1300),hc('Status',2500)])].concat(vq.map(function(q){return row([dc(q.qn,2000),dc(q.desc,3560),dc('£'+q.val,1300),dc(q.status,2500)]);}))));
+  var vq = d.quotes.filter(function(q) { return q.qn || q.desc; });
+  if (vq.length) {
+    var qw = [2000,3560,1300,2500];
+    kids.push(tbl(9360, qw, [row([hc('Quote No.',2000),hc('Description',3560),hc('Value',1300),hc('Status',2500)])].concat(
+      vq.map(function(q) { return row([dc(q.qn,2000), dc(q.desc,3560), dc('£'+q.val,1300), dc(q.status,2500)]); })
+    )));
   } else { kids.push(p('No Outstanding Quotes.')); }
   kids.push(sp());
 
-  if(ai.actionItems&&ai.actionItems.length) {
+  if (ai.actionItems && ai.actionItems.length) {
     kids.push(h1('Action Items'));
-    var aw=[3560,2000,1800,2000];
-    kids.push(tbl(9360,aw,[row([hc('Action',3560),hc('Owner',2000),hc('Deadline',1800),hc('Status',2000)])].concat(ai.actionItems.map(function(a){return row([dc(a.task,3560),dc(a.owner,2000),dc(a.deadline,1800),dc(a.status,2000)]);}))));kids.push(sp());
+    var aw = [3560,2000,1800,2000];
+    kids.push(tbl(9360, aw, [row([hc('Action',3560),hc('Owner',2000),hc('Deadline',1800),hc('Status',2000)])].concat(
+      ai.actionItems.map(function(a) { return row([dc(a.task,3560), dc(a.owner,2000), dc(a.deadline,1800), dc(a.status,2000)]); })
+    )));
+    kids.push(sp());
   }
 
   kids.push(h1('Contract Information'));
-  var cw=[2340,2340,2340,2340];
-  kids.push(tbl(9360,cw,[
+  var cw = [2340,2340,2340,2340];
+  kids.push(tbl(9360, cw, [
     row([hc('Renewal Date',2340),hc('Contract End',2340),hc('Windows Expiry',2340),hc('Till Version',2340)]),
-    row([dc(d.renewalDate||'—',2340),dc(d.contractEnd||'—',2340),dc(d.winExpiry||'—',2340),dc(d.tillVer||'—',2340)])
+    row([dc(d.renewalDate||'—',2340), dc(d.contractEnd||'—',2340), dc(d.winExpiry||'—',2340), dc(d.tillVer||'—',2340)])
   ]));
   kids.push(sp());
 
-  if(d.extraNotes){kids.push(h1('Additional Notes'));kids.push(p(d.extraNotes));kids.push(sp());}
+  if (d.extraNotes) { kids.push(h1('Additional Notes')); kids.push(p(d.extraNotes)); kids.push(sp()); }
 
-  kids.push(new Paragraph({children:[new TextRun({text:'Confidential — MCR Systems © '+new Date().getFullYear(),font:'Poppins',size:18,color:GUN})],alignment:AlignmentType.CENTER,spacing:{before:300}}));
+  kids.push(new Paragraph({children:[new TextRun({text:'Confidential — MCR Systems © '+new Date().getFullYear(), font:'Poppins', size:18, color:GUN})], alignment:AlignmentType.CENTER, spacing:{before:300}}));
 
   var doc = new Document({
-    styles:{default:{document:{run:{font:'Poppins',size:22}}}},
-    sections:[{properties:{page:{size:{width:11906,height:16838},margin:{top:1440,right:1296,bottom:1440,left:1296}}},children:kids}]
+    styles:{default:{document:{run:{font:'Poppins', size:22}}}},
+    sections:[{properties:{page:{size:{width:11906,height:16838}, margin:{top:1440,right:1296,bottom:1440,left:1296}}}, children:kids}]
   });
   var buf = await Packer.toBuffer(doc);
-  docxBlob = new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+  docxBlob = new Blob([buf], {type:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
 }
 
 window.downloadDoc = function() {
-  if(!docxBlob){showStatus('Generate the document first.','error');return;}
+  if (!docxBlob) { showStatus('Generate the document first.', 'error'); return; }
   var d = collect();
-  var name = (d.orgName||'QBR')+'_QBR_'+(d.meetingDate||new Date().toISOString().split('T')[0])+'.docx';
+  var name = (d.orgName || 'QBR') + '_QBR_' + (d.meetingDate || new Date().toISOString().split('T')[0]) + '.docx';
   var url = URL.createObjectURL(docxBlob);
-  var a = document.createElement('a'); a.href=url; a.download=name;
+  var a = document.createElement('a'); a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
 };
 
 // ── HELPERS ────────────────────────────────────────────
-function b64buf(url){var b=url.split(',')[1];var s=atob(b);var a=new Uint8Array(s.length);for(var i=0;i<s.length;i++)a[i]=s.charCodeAt(i);return a.buffer;}
-function fDate(d){if(!d)return'—';var p=d.split('-');var ms=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return p[2]+' '+ms[parseInt(p[1])-1]+' '+p[0];}
-function setGen(on){document.getElementById('genBtn').disabled=on;document.getElementById('genTxt').textContent=on?'Generating...':'Generate QBR Document';document.getElementById('genSpin').style.display=on?'inline-block':'none';}
-function showStatus(msg,type){var b=document.getElementById('statusBar');b.textContent=msg;b.className='status-bar show '+type;}
+function b64buf(url) {
+  var b = url.split(',')[1];
+  var s = atob(b);
+  var a = new Uint8Array(s.length);
+  for (var i = 0; i < s.length; i++) a[i] = s.charCodeAt(i);
+  return a.buffer;
+}
+function fDate(d) {
+  if (!d) return '—';
+  var parts = d.split('-');
+  if (parts.length < 3) return d;
+  var ms = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return parts[2] + ' ' + ms[parseInt(parts[1])-1] + ' ' + parts[0];
+}
+function setGen(on) {
+  document.getElementById('genBtn').disabled = on;
+  document.getElementById('genTxt').textContent = on ? 'Generating...' : 'Generate QBR Document';
+  document.getElementById('genSpin').style.display = on ? 'inline-block' : 'none';
+}
+function showStatus(msg, type) {
+  var b = document.getElementById('statusBar');
+  b.textContent = msg;
+  b.className = 'status-bar show ' + (type||'');
+}
 
 })();
+
 </script>
 </body>
 </html>
