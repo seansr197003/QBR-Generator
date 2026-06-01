@@ -1,6 +1,6 @@
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
         AlignmentType, BorderStyle, WidthType, ShadingType, ImageRun,
-        PageBreak, Header, Footer, TabStopType, TabStopPosition,
+        Header, Footer, TabStopType, TabStopPosition,
         LevelFormat, UnderlineType } = require('docx');
 
 // MCR Logos and QBR cover image embedded as base64
@@ -206,8 +206,6 @@ async function buildDocx(d, ai) {
   coverKids.push(new Paragraph({ children: [masterLogoImg], alignment: AlignmentType.CENTER, spacing: { before: 200, after: 200 } }));
 
   // Page break after cover
-  coverKids.push(new Paragraph({ children: [new PageBreak()] }));
-
   // ── MAIN CONTENT ──────────────────────────────────────
   const kids = [];
 
