@@ -430,18 +430,6 @@ window.addEventListener('load', function() {
   // Set today's date
   document.getElementById('meetingDate').value = new Date().toISOString().split('T')[0];
 
-  // Load saved API key
-  try {
-    var saved = localStorage.getItem('mcr_api_key');
-    if (saved) {
-
-      document.getElementById('keySavedMsg').textContent = '✓ Key loaded from browser storage';
-      // Collapse API section since key is already loaded
-      document.getElementById('body-api').classList.add('hidden');
-      document.getElementById('card-api').querySelector('.section-header').classList.add('collapsed');
-    }
-  } catch(e) {}
-
   // Add one empty quote row and one default date row
   addQuoteRow({});
   addDateRow({event:'QBR'});
@@ -453,13 +441,8 @@ window.addEventListener('load', function() {
   document.getElementById('modalGoBtn').addEventListener('click', function() { closeModal(); doGen(pendingData); });
 });
 
-// ── API KEY SAVE ───────────────────────────────────────
- else {
-      localStorage.removeItem('mcr_api_key');
-      document.getElementById('keySavedMsg').textContent = '';
-    }
-  } catch(e) {}
-};
+// ── API KEY ─────────────────────────────────────────────
+// Key is stored server-side in Netlify environment variables.
 
 // ── SECTION TOGGLE ─────────────────────────────────────
 window.toggleSec = function(id) {
