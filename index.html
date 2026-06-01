@@ -6,7 +6,6 @@
 
 <title>MCR Systems — QBR Generator</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/docx@9.6.1/build/index.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -440,6 +439,7 @@ input[type=password]{font-family:monospace;letter-spacing:.05em}
 var tags = {clientAtts:[], mcrAtts:[], apologies:[]};
 var imgData = {};
 var docxBlob = null;
+var docxFilename = null;
 var pendingData = null;
 
 // ── INIT ───────────────────────────────────────────────
@@ -803,12 +803,11 @@ async function doGen(d) {
   try {
     var res = await fetch('/.netlify/functions/generate', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         system: sys,
-        messages: [{role: 'user', content: usr}]
+        messages: [{role: 'user', content: usr}],
+        formData: d
       })
     });
 
@@ -821,13 +820,19 @@ async function doGen(d) {
     }
 
     var result = await res.json();
-    var txt = result.content.map(function(c) { return c.text || ''; }).join('');
-    // Strip any markdown fences just in case
-    var clean = txt.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
-    var ai = JSON.parse(clean);
+    if (result.error) {
+      showStatus('Error: ' + result.error.message, 'error');
+      setGen(false);
+      return;
+    }
 
-    showStatus('Building your .docx file...', 'info');
-    await buildDocx(d, ai);
+    // Convert base64 docx back to blob and trigger download
+    var byteChars = atob(result.docx);
+    var byteArr = new Uint8Array(byteChars.length);
+    for (var i = 0; i < byteChars.length; i++) byteArr[i] = byteChars.charCodeAt(i);
+    docxBlob = new Blob([byteArr], {type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
+    docxFilename = result.filename;
+
     showStatus('✓ Your QBR document is ready! Click "Download .docx" to save it.', 'success');
     document.getElementById('dlBtn').style.display = 'inline-flex';
 
@@ -993,8 +998,7 @@ async function buildDocx(d, ai) {
 
 window.downloadDoc = function() {
   if (!docxBlob) { showStatus('Generate the document first.', 'error'); return; }
-  var d = collect();
-  var name = (d.orgName || 'QBR') + '_QBR_' + (d.meetingDate || new Date().toISOString().split('T')[0]) + '.docx';
+  var name = docxFilename || 'QBR_Document.docx';
   var url = URL.createObjectURL(docxBlob);
   var a = document.createElement('a'); a.href = url; a.download = name;
   document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
