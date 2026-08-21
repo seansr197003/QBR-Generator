@@ -764,13 +764,12 @@ async function doGen(d) {
     : ('job-' + Date.now() + '-' + Math.random().toString(16).slice(2));
 
   try {
-    // generate-background.js is a Netlify Background Function: it can run
-    // for up to 15 minutes (instead of the ~10–26s limit on a normal
-    // function), which is what a very long meeting transcript needs.
-    // Netlify always answers this call with an empty 202 almost instantly,
-    // regardless of how long the actual work takes — the result is
-    // collected afterwards via polling, below.
-    var startRes = await fetch('/.netlify/functions/generate-background', {
+    // generate-start.js is a normal (fast) function that accepts the full
+    // payload (transcript + screenshots can be large) and hands off just
+    // a small jobId to generate-background.js, which is a Netlify
+    // Background Function and can run for up to 15 minutes — long enough
+    // for even a very long meeting transcript.
+    var startRes = await fetch('/.netlify/functions/generate-start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -781,8 +780,15 @@ async function doGen(d) {
       })
     });
 
-    if (!startRes.ok && startRes.status !== 202) {
-      showStatus('Could not start generation: HTTP ' + startRes.status, 'error');
+    if (!startRes.ok) {
+      var startErrMsg = 'HTTP ' + startRes.status;
+      if (startRes.status === 413) {
+        startErrMsg = 'The meeting notes and/or screenshots are too large to submit. Try trimming the transcript or using smaller/fewer screenshots.';
+      } else {
+        var startErrBody = await startRes.json().catch(function() { return null; });
+        if (startErrBody && startErrBody.error && startErrBody.error.message) startErrMsg = startErrBody.error.message;
+      }
+      showStatus('Could not start generation: ' + startErrMsg, 'error');
       setGen(false);
       return;
     }
