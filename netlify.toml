@@ -1,17 +1,2 @@
 [build]
   functions = "netlify/functions"
-
-# Background Functions (generate-background.js) are always answered by
-# Netlify itself with an immediate 202 - the function's own `headers`
-# return value is ignored for that immediate response. Setting CORS
-# headers here at the edge, for every request under /.netlify/functions/*,
-# is the supported way to make cross-origin preflight (OPTIONS) requests
-# succeed against a Background Function. This is required because the
-# tool's frontend (index.html) is hosted on a different domain
-# (GitHub Pages) than the Netlify functions.
-[[headers]]
-  for = "/.netlify/functions/*"
-  [headers.values]
-    Access-Control-Allow-Origin = "*"
-    Access-Control-Allow-Methods = "GET, POST, OPTIONS"
-    Access-Control-Allow-Headers = "Content-Type"
