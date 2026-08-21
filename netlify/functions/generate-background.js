@@ -20,6 +20,8 @@ const INPUT_PREFIX = 'input:';
 const JOB_TTL_MS = 60 * 60 * 1000; // 1 hour - don't keep finished jobs forever
 
 exports.handler = async function (event) {
+  console.log('[generate-background] invoked, method:', event.httpMethod);
+
   // Background functions always answer the triggering request with an
   // immediate 202 regardless of what we return here - this return value
   // is only visible in Netlify's function logs.
@@ -38,12 +40,14 @@ exports.handler = async function (event) {
   if (!jobId) {
     return { statusCode: 400, body: 'Missing jobId' };
   }
+  console.log('[generate-background] job', jobId, '- starting');
 
   const store = getJobStore(JOB_STORE);
 
   try {
     const input = await store.get(INPUT_PREFIX + jobId, { type: 'json' });
     if (!input) {
+      console.log('[generate-background] job', jobId, '- no stashed input found (missing/expired)');
       await store.setJSON(jobId, {
         status: 'error',
         message: 'Could not find the submitted data for this job (it may have expired). Please try generating again.',
@@ -51,6 +55,7 @@ exports.handler = async function (event) {
       });
       return { statusCode: 200, body: 'handled' };
     }
+    console.log('[generate-background] job', jobId, '- input loaded, calling Claude');
 
     await store.setJSON(jobId, { status: 'processing', updatedAt: Date.now() });
 
@@ -81,10 +86,12 @@ exports.handler = async function (event) {
     if (!aiRes.ok) {
       const err = await aiRes.json().catch(() => ({ error: { message: aiRes.statusText } }));
       const message = (err.error && err.error.message) ? err.error.message : ('HTTP ' + aiRes.status);
+      console.log('[generate-background] job', jobId, '- Claude call failed:', message);
       await store.setJSON(jobId, { status: 'error', message, updatedAt: Date.now() });
       await store.delete(INPUT_PREFIX + jobId).catch(() => {});
       return { statusCode: 200, body: 'handled' };
     }
+    console.log('[generate-background] job', jobId, '- Claude responded OK, parsing JSON');
 
     const aiData = await aiRes.json();
     const txt = aiData.content.map((c) => c.text || '').join('');
@@ -94,6 +101,7 @@ exports.handler = async function (event) {
     try {
       ai = JSON.parse(clean);
     } catch (parseErr) {
+      console.log('[generate-background] job', jobId, '- could not parse Claude JSON:', parseErr.message);
       await store.setJSON(jobId, {
         status: 'error',
         message: "Could not parse Claude's response. Please try again.",
@@ -102,10 +110,12 @@ exports.handler = async function (event) {
       await store.delete(INPUT_PREFIX + jobId).catch(() => {});
       return { statusCode: 200, body: 'handled' };
     }
+    console.log('[generate-background] job', jobId, '- building docx');
 
     const d = input.formData;
     const docxBuf = await buildDocx(d, ai);
     const fname = (d.orgName || 'QBR').replace(/[^a-zA-Z0-9 _-]/g, '') + '_QBR_' + (d.meetingDate || new Date().toISOString().split('T')[0]) + '.docx';
+    console.log('[generate-background] job', jobId, '- docx built, size bytes:', docxBuf.length);
 
     await store.setJSON(jobId, {
       status: 'done',
@@ -114,12 +124,14 @@ exports.handler = async function (event) {
       updatedAt: Date.now(),
       expiresAt: Date.now() + JOB_TTL_MS,
     });
+    console.log('[generate-background] job', jobId, '- done, result stored');
 
     // Clean up the (potentially large) stashed input now that we're done with it.
     await store.delete(INPUT_PREFIX + jobId).catch(() => {});
 
     return { statusCode: 200, body: 'handled' };
   } catch (err) {
+    console.log('[generate-background] job', jobId, '- UNCAUGHT ERROR:', err.message, err.stack);
     try {
       await store.setJSON(jobId, {
         status: 'error',

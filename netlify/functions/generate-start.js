@@ -73,18 +73,34 @@ exports.handler = async function (event) {
     // Trigger the background function with just the jobId - a few bytes,
     // well under its 256 KB limit. This is a server-to-server call, so
     // browser CORS rules don't apply to it.
+    //
+    // IMPORTANT: this MUST be awaited. Serverless functions can freeze
+    // their execution environment the instant they send a response back.
+    // A "fire and forget" call here can get silently dropped mid-flight
+    // if that freeze happens before the request is actually sent - which
+    // leaves the job stuck at "pending" forever, with no error and
+    // nothing for the background function to ever pick up.
     const host = event.headers['x-forwarded-host'] || event.headers.host;
     const proto = event.headers['x-forwarded-proto'] || 'https';
     const backgroundUrl = proto + '://' + host + '/.netlify/functions/generate-background';
 
-    // Fire-and-forget: we don't need to wait for this to resolve, and we
-    // deliberately don't await a completed response body (background
-    // functions return an immediate empty 202 regardless).
-    fetch(backgroundUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ jobId: jobId }),
-    }).catch(() => { /* logged inside generate-background if it ever runs; nothing actionable here */ });
+    try {
+      console.log('[generate-start] job', jobId, '- triggering generate-background at', backgroundUrl);
+      const bgRes = await fetch(backgroundUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobId: jobId }),
+      });
+      console.log('[generate-start] job', jobId, '- background trigger responded with status', bgRes.status);
+    } catch (triggerErr) {
+      console.log('[generate-start] job', jobId, '- background trigger THREW:', triggerErr.message);
+      await store.setJSON(jobId, {
+        status: 'error',
+        message: 'Could not start background processing: ' + triggerErr.message,
+        updatedAt: Date.now(),
+      });
+      return { statusCode: 502, headers: CORS_HEADERS, body: JSON.stringify({ error: { message: 'Could not trigger background processing. Please try again.' } }) };
+    }
 
     return { statusCode: 200, headers: CORS_HEADERS, body: JSON.stringify({ jobId: jobId, status: 'pending' }) };
   } catch (err) {
