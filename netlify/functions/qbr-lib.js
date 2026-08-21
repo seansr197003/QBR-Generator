@@ -350,8 +350,35 @@ async function buildDocx(d, ai) {
   return await Packer.toBuffer(doc);
 }
 
+// ── SHARED BLOBS STORE HELPER ───────────────────────────
+// Netlify Functions are *supposed* to auto-inject the Blobs environment
+// (siteID + token) with zero config, via getStore('name'). In practice
+// this has been unreliable on some sites/deploys (Netlify has several
+// open "MissingBlobsEnvironmentError" reports on their own support forum
+// for exactly this — sites where auto-injection just doesn't kick in).
+//
+// To sidestep that, this helper configures the store *manually* whenever
+// the necessary values are available as environment variables:
+//   - SITE_ID is provided automatically by Netlify to every function, no
+//     setup needed.
+//   - NETLIFY_BLOBS_TOKEN is a Netlify personal access token that must be
+//     created once (User settings -> Applications -> New access token)
+//     and added as a site environment variable.
+// If NETLIFY_BLOBS_TOKEN hasn't been set yet, this falls back to the
+// automatic method so things still work in environments where
+// auto-injection *does* work (e.g. `netlify dev` locally).
+function getJobStore(name) {
+  const { getStore } = require('@netlify/blobs');
+  const siteID = process.env.SITE_ID;
+  const token = process.env.NETLIFY_BLOBS_TOKEN;
+  if (siteID && token) {
+    return getStore({ name: name, siteID: siteID, token: token });
+  }
+  return getStore(name);
+}
+
 module.exports = {
   LOGO_SEASALT, LOGO_CARBON, QBR_IMAGE, LOGO_MASTER,
   POPPINS_REGULAR, POPPINS_BOLD, POPPINS_MEDIUM,
-  b64ToBuffer, buildDocx,
+  b64ToBuffer, buildDocx, getJobStore,
 };

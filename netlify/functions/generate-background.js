@@ -13,8 +13,7 @@
 //   3. Writes the finished result (or an error) back into Blobs under
 //      the same jobId, for generate-status.js to hand to the browser.
 
-const { getStore } = require('@netlify/blobs');
-const { buildDocx } = require('./qbr-lib');
+const { buildDocx, getJobStore } = require('./qbr-lib');
 
 const JOB_STORE = 'qbr-jobs';
 const INPUT_PREFIX = 'input:';
@@ -40,7 +39,7 @@ exports.handler = async function (event) {
     return { statusCode: 400, body: 'Missing jobId' };
   }
 
-  const store = getStore(JOB_STORE);
+  const store = getJobStore(JOB_STORE);
 
   try {
     const input = await store.get(INPUT_PREFIX + jobId, { type: 'json' });

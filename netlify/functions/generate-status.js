@@ -4,7 +4,7 @@
 // few seconds after kicking off netlify/functions/generate-background.js.
 // Reads the job's current state out of Netlify Blobs and returns it.
 
-const { getStore } = require('@netlify/blobs');
+const { getJobStore } = require('./qbr-lib');
 
 const JOB_STORE = 'qbr-jobs';
 
@@ -29,7 +29,7 @@ exports.handler = async function (event) {
   }
 
   try {
-    const store = getStore(JOB_STORE);
+    const store = getJobStore(JOB_STORE);
     const job = await store.get(jobId, { type: 'json' });
 
     if (!job) {

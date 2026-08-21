@@ -20,7 +20,7 @@
 // generate-background.js then reads the stashed payload back out of
 // Blobs by jobId and does the actual (slow) Claude call + docx build.
 
-const { getStore } = require('@netlify/blobs');
+const { getJobStore } = require('./qbr-lib');
 
 const JOB_STORE = 'qbr-jobs';
 const INPUT_PREFIX = 'input:';
@@ -56,7 +56,7 @@ exports.handler = async function (event) {
   }
 
   try {
-    const store = getStore(JOB_STORE);
+    const store = getJobStore(JOB_STORE);
 
     // Stash the full (potentially large) payload for the background
     // function to pick up by jobId. This write happens in a normal
