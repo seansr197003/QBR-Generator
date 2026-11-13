@@ -30,6 +30,7 @@ body{font-family:'Poppins',sans-serif;font-size:12px;background:var(--bg);color:
 .req{color:#c0392b;margin-left:2px}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .grid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.grid-2x2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 input[type=text],input[type=date],input[type=password],select,textarea{
   width:100%;padding:8px 11px;border:1.5px solid var(--celadon);border-radius:6px;
   font-family:'Poppins',sans-serif;font-size:12px;color:var(--carbon);background:#fff;
@@ -235,7 +236,7 @@ input[type=password]{font-family:monospace;letter-spacing:.05em}
   </div>
   <div class="section-body" id="body-dashboards">
     <div class="hint">Take a screenshot of each dashboard, then click "Paste from Clipboard" — or use "Choose File" to upload directly.</div>
-    <div class="grid-3">
+    <div class="grid-2x2">
       <div class="img-slot" id="slot-d1">
         <div class="img-slot-icon">📊</div>
         <div class="img-slot-label">Support Dashboard</div>
@@ -244,6 +245,15 @@ input[type=password]{font-family:monospace;letter-spacing:.05em}
           <label class="slot-btn" style="cursor:pointer">📁 Choose File<input type="file" accept="image/*" class="file-input-hidden" onchange="fileImg(event,'d1')"></label>
         </div>
         <img class="img-preview" id="prev-d1">
+      </div>
+      <div class="img-slot" id="slot-d4">
+        <div class="img-slot-icon">📈</div>
+        <div class="img-slot-label">MCR Overall Uptime</div>
+        <div class="slot-btns">
+          <button class="slot-btn" onclick="pasteImg('d4')">📋 Paste from Clipboard</button>
+          <label class="slot-btn" style="cursor:pointer">📁 Choose File<input type="file" accept="image/*" class="file-input-hidden" onchange="fileImg(event,'d4')"></label>
+        </div>
+        <img class="img-preview" id="prev-d4">
       </div>
       <div class="img-slot" id="slot-d2">
         <div class="img-slot-icon">📊</div>
@@ -677,6 +687,7 @@ function collect() {
     d1: imgData['d1'] || null,
     d2: imgData['d2'] || null,
     d3: imgData['d3'] || null,
+    d4: imgData['d4'] || null,
     quotes: qs, dates: ds,
     surveyStatus: document.getElementById('surveyStatus').value,
     surveyNotes: document.getElementById('surveyNotes').value.trim(),
@@ -954,6 +965,7 @@ async function buildDocx(d, ai) {
   }
   if (d.d1) { try { var b1=b64buf(d.d1); kids.push(sp()); kids.push(new Paragraph({children:[new ImageRun({type:d.d1.includes('/png')?'png':'jpg', data:b1, transformation:{width:600,height:300}, altText:{title:'Support Dashboard',description:'',name:'SupportDash'}})]})); } catch(e){ console.warn('d1 img:',e); } }
   kids.push(sp());
+  if (d.d4) { try { var b4=b64buf(d.d4); kids.push(h2('MCR Overall Uptime')); kids.push(new Paragraph({children:[new ImageRun({type:d.d4.includes('/png')?'png':'jpg', data:b4, transformation:{width:600,height:120}, altText:{title:'MCR Overall Uptime',description:'',name:'UptimeDash'}})]})); kids.push(sp()); } catch(e){ console.warn('d4 img:',e); } }
 
   kids.push(h1('KPI Dashboards'));
   if (d.d2) { try { var b2=b64buf(d.d2); kids.push(h2('Contract KPI')); kids.push(new Paragraph({children:[new ImageRun({type:d.d2.includes('/png')?'png':'jpg', data:b2, transformation:{width:600,height:300}, altText:{title:'Contract KPI',description:'',name:'ContractKPI'}})]})); kids.push(sp()); } catch(e){ console.warn('d2 img:',e); } }
