@@ -76,6 +76,35 @@ async function buildDocx(d, ai) {
     } catch(e) { return null; }
   }
 
+  // Reads pixel width/height from a PNG or JPEG buffer (null if unknown)
+  function imgSize(buf) {
+    try {
+      if (buf[0] === 0x89 && buf[1] === 0x50) return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+      if (buf[0] === 0xFF && buf[1] === 0xD8) {
+        let o = 2;
+        while (o < buf.length) {
+          if (buf[o] !== 0xFF) { o++; continue; }
+          const m = buf[o + 1];
+          if (m >= 0xC0 && m <= 0xCF && m !== 0xC4 && m !== 0xC8 && m !== 0xCC) return { w: buf.readUInt16BE(o + 7), h: buf.readUInt16BE(o + 5) };
+          o += 2 + buf.readUInt16BE(o + 2);
+        }
+      }
+    } catch(e) {}
+    return null;
+  }
+
+  // Like imgFromB64 but keeps the screenshot's real proportions (fixed width, height to suit, capped)
+  function imgFromB64Fit(b64, w, maxH, name) {
+    try {
+      const buf = Buffer.from(b64.split(',')[1] || b64, 'base64');
+      const sz = imgSize(buf);
+      let h = sz && sz.w ? Math.round(w * sz.h / sz.w) : Math.round(w / 2);
+      let ww = w;
+      if (h > maxH) { ww = Math.round(ww * maxH / h); h = maxH; }
+      return new ImageRun({ type: 'jpg', data: buf, transformation: { width: ww, height: h }, altText: { title: name, description: '', name: name } });
+    } catch(e) { return null; }
+  }
+
   function linkPara(label, url) {
     return new Paragraph({
       children: [
@@ -199,6 +228,12 @@ async function buildDocx(d, ai) {
   if (d.d1) {
     const img = imgFromB64(d.d1, 610, 300);
     if (img) { kids.push(new Paragraph({ children: [img], alignment: AlignmentType.CENTER })); kids.push(sp()); }
+  }
+
+  // MCR Overall Uptime image (after Support Dashboard, before KPI Dashboards)
+  if (d.d4) {
+    const img = imgFromB64Fit(d.d4, 610, 400, 'MCR Overall Uptime');
+    if (img) { kids.push(new Paragraph({ children: [new TextRun({ text: 'MCR Overall Uptime', font: 'Poppins', size: 22, color: G })], spacing: { after: 80 }, keepNext: true })); kids.push(new Paragraph({ children: [img], alignment: AlignmentType.CENTER })); kids.push(sp()); }
   }
 
   // KPI Dashboards
